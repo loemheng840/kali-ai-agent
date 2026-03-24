@@ -1,0 +1,77 @@
+services:
+
+  kali-worker:
+    build:
+      context: .
+      dockerfile: kali-worker/Dockerfile
+    container_name: kali-worker
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+      - "8080:8080"
+    environment:
+      GO_SERVER_PORT: "8080"
+      HITL_SECRET: "${HITL_SECRET}"
+    cap_add:
+      - NET_RAW
+      - NET_ADMIN
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - security-net
+    deploy:
+      resources:
+        limits:
+          memory: 2g        # hard cap — container killed if exceeded
+          cpus: "2.0"
+        reservations:
+          memory: 512m      # guaranteed minimum
+          cpus: "0.5"
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+
+  gateway:
+    build:
+      context: ./gateway-fastapi
+      dockerfile: Dockerfile
+    container_name: kali-gateway
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY}"
+      KALI_SERVER_URL: "http://kali-worker:8080"
+      MCP_SERVER_URL:  "http://kali-worker:5000/mcp"
+      HITL_SECRET: "${HITL_SECRET}"
+    depends_on:
+      kali-worker:
+        condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - security-net
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+          cpus: "1.0"
+        reservations:
+          memory: 256m
+          cpus: "0.25"
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+networks:
+  security-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/24
