@@ -67,7 +67,8 @@ var argAllowlists = map[string][]*regexp.Regexp{
 	},
 	"nikto": {
 		regexp.MustCompile(`^-h$`),
-		regexp.MustCompile(`^` + targetPattern + `$`),
+		regexp.MustCompile(`^` + targetPattern + `$`),              // plain hostname/IP
+		regexp.MustCompile(`^https?://` + targetPattern + `/?$`),   // URL with http://
 		regexp.MustCompile(`^-p$`), regexp.MustCompile(`^\d{1,5}$`),
 		regexp.MustCompile(`^-ssl$`),
 		regexp.MustCompile(`^-o$`), regexp.MustCompile(`^/tmp/[a-zA-Z0-9_\-\.]+$`),
@@ -311,7 +312,6 @@ func (h *ToolHandler) executeCommand(job *Job, binary string, args []string) {
 // ── SSE Streaming ─────────────────────────────────────────────────────────────
 
 // Stream handles GET /stream/{job_id}
-// It emits Server-Sent Events so the Next.js frontend can receive live output.
 func (h *ToolHandler) Stream(w http.ResponseWriter, r *http.Request) {
 	jobID := strings.TrimPrefix(r.URL.Path, "/stream/")
 	if jobID == "" {
@@ -319,26 +319,33 @@ func (h *ToolHandler) Stream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	job := h.getJob(jobID)
+	// Wait up to 5 seconds for the job to appear (race between POST and GET)
+	var job *Job
+	for i := 0; i < 50; i++ {
+		job = h.getJob(jobID)
+		if job != nil {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
 	if job == nil {
 		http.Error(w, "Job not found", http.StatusNotFound)
 		return
 	}
 
-	// SSE headers
+	// SSE headers — must be set before WriteHeader
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
-	w.Header().Set("X-Accel-Buffering", "no") // disable nginx buffering
-	w.WriteHeader(http.StatusOK)
+	w.Header().Set("X-Accel-Buffering", "no")
 
-	flusher, ok := w.(http.Flusher)
-	if !ok {
-		http.Error(w, "Streaming not supported", http.StatusInternalServerError)
-		return
+	// Use rc (ResponseController) for flushing — works with all middleware wrappers
+	rc := http.NewResponseController(w)
+
+	flush := func() {
+		_ = rc.Flush()
 	}
 
-	// Emit a heartbeat every 15 s to keep the connection alive through proxies
 	ticker := time.NewTicker(15 * time.Second)
 	defer ticker.Stop()
 
@@ -347,12 +354,12 @@ func (h *ToolHandler) Stream(w http.ResponseWriter, r *http.Request) {
 		case event, open := <-job.Events:
 			if !open {
 				fmt.Fprintf(w, "event: close\ndata: {}\n\n")
-				flusher.Flush()
+				flush()
 				return
 			}
 			data, _ := json.Marshal(event)
 			fmt.Fprintf(w, "event: %s\ndata: %s\n\n", event.Type, string(data))
-			flusher.Flush()
+			flush()
 
 			if event.Type == "exit" || event.Type == "error" {
 				return
@@ -360,22 +367,21 @@ func (h *ToolHandler) Stream(w http.ResponseWriter, r *http.Request) {
 
 		case <-ticker.C:
 			fmt.Fprintf(w, ": heartbeat\n\n")
-			flusher.Flush()
+			flush()
 
 		case <-r.Context().Done():
 			return
 
 		case <-job.Done:
-			// Drain remaining events
 			for {
 				select {
 				case event := <-job.Events:
 					data, _ := json.Marshal(event)
 					fmt.Fprintf(w, "event: %s\ndata: %s\n\n", event.Type, string(data))
-					flusher.Flush()
+					flush()
 				default:
 					fmt.Fprintf(w, "event: close\ndata: {}\n\n")
-					flusher.Flush()
+					flush()
 					return
 				}
 			}

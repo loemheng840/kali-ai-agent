@@ -26,7 +26,7 @@ import (
 )
 
 func main() {
-	port := getEnv("GO_SERVER_PORT", "8080")
+	port := getEnv("GO_SERVER_PORT", "8081")
 	logger := log.New(os.Stdout, "[kali-go] ", log.LstdFlags|log.Lshortfile)
 
 	mux := http.NewServeMux()
