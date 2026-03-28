@@ -55,12 +55,8 @@ RUN curl -fsSL \
 
 # ── 4. MCP SDK only — official Anthropic package ──────────────────────────────
 RUN python3 -m venv /opt/mcp-venv \
-    && /opt/mcp-venv/bin/pip install --no-cache-dir --upgrade pip \
-    && /opt/mcp-venv/bin/pip install --no-cache-dir \
-        mcp \
-        httpx \
-        starlette \
-        uvicorn
+    && /opt/mcp-venv/bin/pip install --upgrade pip setuptools wheel \
+    && /opt/mcp-venv/bin/pip install 'mcp>=1.0.0,<2.0.0' 'httpx>=0.25.0' 'starlette>=0.30.0' 'uvicorn>=0.24.0' 'pydantic>=2.0.0'
 
 ENV PATH="/opt/mcp-venv/bin:$PATH"
 

@@ -23,9 +23,9 @@ from pydantic import BaseModel, field_validator
 
 KALI_SERVER_URL = os.getenv("KALI_SERVER_URL", "http://localhost:9090")
 MCP_SERVER_URL  = os.getenv("MCP_SERVER_URL",  "http://localhost:5001/sse")
-HITL_SECRET     = os.environ["HITL_SECRET"]
+HITL_SECRET     = os.getenv("HITL_SECRET")
 OLLAMA_HOST     = os.getenv("OLLAMA_HOST", "http://localhost:11434")
-OLLAMA_MODEL    = os.getenv("OLLAMA_MODEL", "llama3.1")
+OLLAMA_MODEL    = os.getenv("OLLAMA_MODEL", "qwen2.5:3b")
 
 DESTRUCTIVE_TOOLS = {"sqlmap_scan", "metasploit_run"}
 

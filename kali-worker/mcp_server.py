@@ -166,13 +166,18 @@ async def handle_sse(request: Request):
         )
     return Response()   # ← REQUIRED in mcp 1.26.0 to avoid NoneType error
 
+async def handle_post_message(request: Request):
+    """Wrapper for sse_transport.handle_post_message to ensure proper ASGI response."""
+    response = await sse_transport.handle_post_message(request.scope, request.receive, request._send)
+    return response if response is not None else Response()
+
 # ── Starlette app ──────────────────────────────────────────────────────────────
 
 app = Starlette(
     routes=[
         Route("/sse", endpoint=handle_sse, methods=["GET"]),
         Route("/mcp", endpoint=handle_sse, methods=["GET"]),
-        Mount("/messages/", app=sse_transport.handle_post_message),
+        Route("/messages/", endpoint=handle_post_message, methods=["POST"]),
     ]
 )
 

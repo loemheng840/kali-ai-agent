@@ -7,10 +7,10 @@ services:
     container_name: kali-worker
     restart: unless-stopped
     ports:
-      - "5000:5000"
-      - "8080:8080"
+      - "5000:5001"
+      - "8080:8081"
     environment:
-      GO_SERVER_PORT: "8080"
+      GO_SERVER_PORT: "8081"
       HITL_SECRET: "${HITL_SECRET}"
     cap_add:
       - NET_RAW
@@ -28,7 +28,7 @@ services:
           memory: 512m      # guaranteed minimum
           cpus: "0.5"
     healthcheck:
-      test: ["CMD", "curl", "-sf", "http://localhost:8080/health"]
+      test: ["CMD", "curl", "-sf", "http://localhost:8081/health"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -44,8 +44,8 @@ services:
       - "8000:8000"
     environment:
       ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY}"
-      KALI_SERVER_URL: "http://kali-worker:8080"
-      MCP_SERVER_URL:  "http://kali-worker:5000/mcp"
+      KALI_SERVER_URL: "http://kali-worker:8081"
+      MCP_SERVER_URL:  "http://kali-worker:5001/mcp"
       HITL_SECRET: "${HITL_SECRET}"
     depends_on:
       kali-worker:
@@ -63,7 +63,7 @@ services:
           memory: 256m
           cpus: "0.25"
     healthcheck:
-      test: ["CMD", "curl", "-sf", "http://localhost:8000/health"]
+      test: ["CMD", "curl", "-sf", "http://localhost:8001/health"]
       interval: 30s
       timeout: 10s
       retries: 3
